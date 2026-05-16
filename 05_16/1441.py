@@ -30,5 +30,19 @@ def play_guessing_game():
             break
 
 
+def ask_replay():
+    while True:
+        answer = input("要再玩一次嗎？(y/n)：").strip().lower()
+        if answer in {"y", "yes", "o", "是"}:
+            return True
+        if answer in {"n", "no", "否"}:
+            return False
+        print("請輸入 y/yes/o/是 或 n/no/否。")
+
+
 if __name__ == "__main__":
-    play_guessing_game()
+    while True:
+        play_guessing_game()
+        if not ask_replay():
+            print("謝謝遊玩，再見！")
+            break
