@@ -1,21 +1,23 @@
-file = open("student.txt","r",encoding="utf-8")
+file = open("0606/student.txt", "r", encoding="utf-8")
 print(type(file))
 content = file.read()
 print(content)
 file.close()
-file.closed
+print(file.closed)
 
-#=======================
+# =======================
 
-with open("student.txt","r",encoding="utf-8") as file:
-	content = file.read()
+with open("0606/student.txt", "r", encoding="utf-8") as file:
+    content = file.read()
 
 print(file.closed)
 
-#==============
+# =======================
 import csv
 
-with open("考試分數_3年6班.csv", "r", encoding="utf-8") as file:
+with open("0606/考試分數 - 3年6班.csv", "r", encoding="utf-8") as file:
     reader = csv.DictReader(file)
+    print(type(reader))
     for row in reader:
-        print(row)
+        if int(row['數學']) >90:
+            print(row['學生姓名'])
