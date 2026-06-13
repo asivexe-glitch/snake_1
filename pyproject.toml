@@ -8,4 +8,5 @@ dependencies = [
     "pandas>=3.0.3",
     "requests>=2.34.2",
     "reportlab>=4.0.0",
+    "matplotlib>=3.11.0",
 ]

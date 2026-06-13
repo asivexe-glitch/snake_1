@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tkinter Web 版本</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: "Microsoft JhengHei", "微軟正黑體", sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            padding: 30px;
+            width: 100%;
+            max-width: 400px;
+        }
+
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 20px;
+            font-size: 24px;
+        }
+
+        .input-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        input[type="text"] {
+            flex: 1;
+            padding: 10px 15px;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+
+        input[type="text"]:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            font-size: 14px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+
+        .btn-add {
+            background: #667eea;
+            color: white;
+        }
+
+        .btn-add:hover {
+            background: #5568d3;
+        }
+
+        .btn-clear {
+            width: 100%;
+            background: #ff6b6b;
+            color: white;
+            margin-bottom: 10px;
+        }
+
+        .btn-clear:hover {
+            background: #ff5252;
+        }
+
+        .listbox {
+            border: 2px solid #ddd;
+            border-radius: 5px;
+            height: 250px;
+            overflow-y: auto;
+            padding: 10px;
+            margin-bottom: 15px;
+            background: #f9f9f9;
+        }
+
+        .listbox-item {
+            padding: 10px;
+            background: white;
+            border-left: 4px solid #667eea;
+            margin-bottom: 5px;
+            border-radius: 3px;
+            word-break: break-word;
+        }
+
+        .listbox-empty {
+            text-align: center;
+            color: #999;
+            padding: 20px;
+        }
+
+        .message {
+            text-align: center;
+            padding: 10px;
+            margin-bottom: 10px;
+            border-radius: 5px;
+            display: none;
+        }
+
+        .message.success {
+            background: #d4edda;
+            color: #155724;
+            display: block;
+        }
+
+        .message.error {
+            background: #f8d7da;
+            color: #721c24;
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📝 簡易清單</h1>
+        <div id="message" class="message"></div>
+
+        <div class="input-group">
+            <input type="text" id="inputField" placeholder="輸入項目..." autofocus>
+            <button class="btn-add" onclick="addItem()">新增</button>
+        </div>
+
+        <div class="listbox" id="listbox">
+            <div class="listbox-empty">清單為空</div>
+        </div>
+
+        <button class="btn-clear" onclick="clearList()">清除所有</button>
+    </div>
+
+    <script>
+        function showMessage(text, type = "success") {
+            const msg = document.getElementById("message");
+            msg.textContent = text;
+            msg.className = "message " + type;
+            setTimeout(() => {
+                msg.className = "message";
+            }, 3000);
+        }
+
+        function renderList(items) {
+            const listbox = document.getElementById("listbox");
+            if (items.length === 0) {
+                listbox.innerHTML = '<div class="listbox-empty">清單為空</div>';
+            } else {
+                listbox.innerHTML = items
+                    .map(item => `<div class="listbox-item">${escapeHtml(item)}</div>`)
+                    .join("");
+            }
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement("div");
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function addItem() {
+            const input = document.getElementById("inputField");
+            const text = input.value.trim();
+
+            if (!text) {
+                showMessage("請輸入文字", "error");
+                return;
+            }
+
+            fetch("/api/add", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ text: text })
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    input.value = "";
+                    renderList(data.items);
+                    showMessage("已新增", "success");
+                } else {
+                    showMessage(data.message, "error");
+                }
+            });
+        }
+
+        function clearList() {
+            if (!confirm("確定要清除所有項目嗎？")) return;
+
+            fetch("/api/clear", { method: "POST" })
+            .then(r => r.json())
+            .then(data => {
+                renderList(data.items);
+                showMessage("已清除", "success");
+            });
+        }
+
+        document.getElementById("inputField").addEventListener("keypress", (e) => {
+            if (e.key === "Enter") addItem();
+        });
+
+        // 初始載入
+        fetch("/api/items")
+            .then(r => r.json())
+            .then(data => renderList(data.items));
+    </script>
+</body>
+</html>
