@@ -1,64 +1,112 @@
 import requests
+from requests import Response
 import pandas as pd
-from reportlab.lib.pagesizes import A4
-from reportlab.lib import colors
-from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
-from reportlab.lib.styles import getSampleStyleSheet
-from reportlab.lib.units import cm
-
-def fetch_youbike_data() -> pd.DataFrame:
-    # 台北市 YouBike 2.0 的 Web API 網址
-    url = "https://tcgbusfs.blob.core.windows.net/dotapp/youbike/v2/youbike_immediate.json"
-    # 使用 requests 套件裡面的 get 函式，執行後會傳出 Response 的實體
-    response = requests.get(url)
-    response.raise_for_status()
-    data = response.json() # 使用 Response 實體的 json() 方法，會傳出 list 的資料結構
-    return pd.DataFrame(data)
+from pandas import DataFrame
+from pathlib import Path
 
 
-def dataframe_to_pdf(df: pd.DataFrame, filename: str, max_rows: int = 20) -> None:
+def export_to_pdf(df: pd.DataFrame, output_path: Path) -> None:
+    # 延遲匯入：只有真的要輸出 PDF 時才需要 reportlab
+    try:
+        from reportlab.lib import colors
+        from reportlab.lib.pagesizes import A4
+        from reportlab.lib.styles import getSampleStyleSheet
+        from reportlab.pdfbase import pdfmetrics
+        from reportlab.pdfbase.cidfonts import UnicodeCIDFont
+        from reportlab.platypus import PageBreak, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+    except ModuleNotFoundError:
+        print("缺少套件 reportlab，請先安裝：pip install reportlab")
+        return
+
+    # 註冊可顯示中文的字型（macOS / Linux 常可直接使用）
+    font_name = "STSong-Light"
+    pdfmetrics.registerFont(UnicodeCIDFont(font_name))
+
+    # 挑選適合放進報表的欄位，避免欄位太多導致版面混亂
+    preferred_columns = ["sno", "sna", "sarea", "ar", "tot", "sbi", "bemp", "mday"]
+    columns = [col for col in preferred_columns if col in df.columns]
+
+    if not columns:
+        print("找不到可輸出的欄位，無法建立 PDF。")
+        return
+
+    table_rows = df[columns].fillna("").astype(str).values.tolist()
+    rows_per_page = 35
+
     doc = SimpleDocTemplate(
-        filename,
+        str(output_path),
         pagesize=A4,
-        rightMargin=1 * cm,
-        leftMargin=1 * cm,
-        topMargin=1 * cm,
-        bottomMargin=1 * cm,
+        rightMargin=18,
+        leftMargin=18,
+        topMargin=18,
+        bottomMargin=18,
     )
 
     styles = getSampleStyleSheet()
-    story = [Paragraph("YouBike 即時資料報表", styles["Title"]), Spacer(1, 0.3 * cm)]
+    title_style = styles["Title"]
+    title_style.fontName = font_name
 
-    rows = [list(df.columns)] + df.head(max_rows).astype(str).values.tolist()
-    table = Table(rows, repeatRows=1)
-    table.setStyle(
-        TableStyle(
-            [
-                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#d3d3d3")),
-                ("TEXTCOLOR", (0, 0), (-1, 0), colors.black),
-                ("GRID", (0, 0), (-1, -1), 0.25, colors.grey),
-                ("FONTNAME", (0, 0), (-1, -1), "Helvetica"), # 註冊可顯示中文的字型（macOS / Linux 常可直接使用）
-                ("FONTSIZE", (0, 0), (-1, -1), 8),
-                ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                ("ALIGN", (0, 0), (-1, -1), "LEFT"),
-            ]
+    story = [
+        Paragraph("YouBike 即時資料報表", title_style),
+        Spacer(1, 12),
+    ]
+
+    for index in range(0, len(table_rows), rows_per_page):
+        chunk = table_rows[index:index + rows_per_page]
+        table_data = [columns] + chunk
+
+        col_widths = []
+        for col in columns:
+            if col in ("sna", "ar"):
+                col_widths.append(135)
+            elif col == "mday":
+                col_widths.append(120)
+            else:
+                col_widths.append(62)
+
+        table = Table(table_data, repeatRows=1, colWidths=col_widths)
+        table.setStyle(
+            TableStyle(
+                [
+                    ("FONTNAME", (0, 0), (-1, -1), font_name),
+                    ("FONTSIZE", (0, 0), (-1, -1), 8),
+                    ("BACKGROUND", (0, 0), (-1, 0), colors.lightblue),
+                    ("TEXTCOLOR", (0, 0), (-1, 0), colors.black),
+                    ("GRID", (0, 0), (-1, -1), 0.3, colors.grey),
+                    ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ]
+            )
         )
-    )
 
-    story.append(table)
+        story.append(table)
+
+        if index + rows_per_page < len(table_rows):
+            story.append(PageBreak())
+
     doc.build(story)
+    print(f"PDF 已產生：{output_path}")
 
+def main():
+    # 台北市 YouBike 2.0 的 Web API 網址
+    url:str = "https://tcgbusfs.blob.core.windows.net/dotapp/youbike/v2/youbike_immediate.json"
 
-def main() -> None:
-    try:
-        df = fetch_youbike_data()
-        print(df.head())
-        output_file = "youbike_report.pdf"
-        dataframe_to_pdf(df, output_file)
-        print(f"已產生 PDF 檔案：{output_file}")
-    except requests.RequestException:
-        print("下載失敗，無法取得資料。")
+    # 使用 requests 套件裡面的 get 函式，執行後會傳出 Response 的實體
+    response:Response = requests.get(url) 
 
+    if response.status_code == 200: # 使用 Response 裡的 Property 叫 status_code，如果取得的數字是 200 代表下載成功，如果不是則代表下載失敗
+        data:list[dict] = response.json() # 使用 Response 實體的 json() 方法，會傳出 list 的資料結構
+
+        # list[dict] -> DataFrame
+        df:DataFrame = pd.DataFrame(data=data)
+
+        print(df.tail())
+
+        output_file = Path(__file__).with_name("youbike_report.pdf")
+        
+        export_to_pdf(df, output_file)
+
+    else:
+        print("下載失敗")
 
 if __name__ == '__main__':
     main()
