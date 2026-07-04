@@ -44,8 +44,9 @@ def compute_log_returns(close):
     return np.log(close / close.shift(1)).dropna()
 
 def rolling_correlation(returns, window=30):
-    return returns[list(tickers.values())].rolling(window=window).corr(
-        returns[TWII] if TWII in returns.columns else returns.iloc[:, 0]
+    stock_names = list(tickers.keys())
+    return returns[stock_names].rolling(window=window).corr(
+        returns["加權指數"] if "加權指數" in returns.columns else returns.iloc[:, 0]
     )
 
 def risk_metrics(returns, risk_free=0.015):
